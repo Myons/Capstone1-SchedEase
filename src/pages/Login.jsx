@@ -2,6 +2,7 @@ import { useState } from "react";
 import { auth, db } from "../firebase/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
+import "./Login.css";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -54,47 +55,138 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded shadow-md w-96">
+    <div className="login-container">
+      <div className="login-card">
         {!showRequestForm ? (
           <>
-            <h1 className="text-2xl font-bold mb-6 text-center text-blue-900">Login</h1>
-            {error && <p className="text-red-500 mb-4">{error}</p>}
+            <div className="login-header">
+              <h1>Faculty Login</h1>
+              <p>Enter your credentials to access your account</p>
+            </div>
+            
+            {error && <div className="error-message">{error}</div>}
 
             <form onSubmit={handleLogin}>
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="border p-2 mb-4 w-full rounded" required />
-              <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="border p-2 mb-6 w-full rounded" required />
-              <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">Login</button>
+              <div className="input-group">
+                <label htmlFor="email">Email Address</label>
+                <input 
+                  id="email"
+                  type="email" 
+                  className="input-field" 
+                  placeholder="your.email@university.edu" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="password">Password</label>
+                <input 
+                  id="password"
+                  type="password" 
+                  className="input-field" 
+                  placeholder="••••••••" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <button type="submit" className="submit-button">
+                Sign In
+              </button>
             </form>
 
-            <p className="mt-4 text-center text-blue-600 cursor-pointer" onClick={() => setShowRequestForm(true)}>
-              Request an Account
-            </p>
+            <span className="text-link" onClick={() => setShowRequestForm(true)}>
+              Need an account? Request access
+            </span>
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-bold mb-6 text-center text-blue-900">Request an Account</h1>
+            <div className="login-header">
+              <h1>Request Faculty Access</h1>
+              <p>Submit your information for approval</p>
+            </div>
 
-            {requestSuccess && <p className="text-green-600 mb-4">{requestSuccess}</p>}
+            {requestSuccess && <div className="success-message">{requestSuccess}</div>}
+            {error && <div className="error-message">{error}</div>}
 
             <form onSubmit={handleRequestAccount}>
-              <input type="text" placeholder="Full Name" value={reqName} onChange={(e) => setReqName(e.target.value)} className="border p-2 mb-4 w-full rounded" required />
-              <input type="email" placeholder="Email" value={reqEmail} onChange={(e) => setReqEmail(e.target.value)} className="border p-2 mb-4 w-full rounded" required />
-              <input type="password" placeholder="Password" value={reqPassword} onChange={(e) => setReqPassword(e.target.value)} className="border p-2 mb-4 w-full rounded" required />
-              <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="border p-2 mb-4 w-full rounded" required />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="border p-2 mb-4 w-full rounded">
-                <option>Full-time</option>
-                <option>Part-time</option>
-                <option>Visiting</option>
-              </select>
-              <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">
+              <div className="input-group">
+                <label htmlFor="fullName">Full Name</label>
+                <input 
+                  id="fullName"
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Dr. Jane Smith" 
+                  value={reqName} 
+                  onChange={(e) => setReqName(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="reqEmail">Email Address</label>
+                <input 
+                  id="reqEmail"
+                  type="email" 
+                  className="input-field" 
+                  placeholder="your.email@university.edu" 
+                  value={reqEmail} 
+                  onChange={(e) => setReqEmail(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="reqPassword">Password</label>
+                <input 
+                  id="reqPassword"
+                  type="password" 
+                  className="input-field" 
+                  placeholder="Create a secure password" 
+                  value={reqPassword} 
+                  onChange={(e) => setReqPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <input 
+                  id="confirmPassword"
+                  type="password" 
+                  className="input-field" 
+                  placeholder="Confirm your password" 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="status">Faculty Status</label>
+                <select 
+                  id="status"
+                  className="select-field" 
+                  value={status} 
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option>Full-time</option>
+                  <option>Part-time</option>
+                  <option>Visiting</option>
+                </select>
+              </div>
+              
+              <button type="submit" className="submit-button">
                 Submit Request
               </button>
             </form>
 
-            <p className="mt-4 text-center text-gray-600 cursor-pointer" onClick={() => setShowRequestForm(false)}>
-              Back to Login
-            </p>
+            <span className="back-link" onClick={() => setShowRequestForm(false)}>
+              Return to Login
+            </span>
           </>
         )}
       </div>
