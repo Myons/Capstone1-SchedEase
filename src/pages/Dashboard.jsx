@@ -138,7 +138,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-4" > Dashboard</h1>
       
       {/* View mode toggle */}
       <div className="mb-6 flex space-x-4">
