@@ -41,6 +41,7 @@ body {
   font-weight: bold;
   text-align: center;
   background-color: #1e3a8a;
+  height: 18%;
   
 }
 
@@ -296,6 +297,7 @@ tr:hover {
 .p-6 {
   padding: 1.5rem;
   width: 100%;
+
   color: blue;
 
 }

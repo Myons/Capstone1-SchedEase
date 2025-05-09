@@ -8,10 +8,11 @@ export default function Sidebar() {
   return (
     <div className="sidebar">
       <div className="sidebar-header">  
-        
+       
       <NavLink to="/" className="app-logo">
-  <img src={logo} alt="CIT-U SHS Logo" />
+  <img src={logo} alt="CIT-U SHS Logo"  />
 </NavLink>
+
       </div>
 
       <nav className="sidebar-menu">
