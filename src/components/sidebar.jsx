@@ -1,11 +1,17 @@
 import { NavLink } from "react-router-dom";
 import { auth } from "../firebase/firebase";
+import logo from '../assets/Logogo.png';
+
+
 
 export default function Sidebar() {
   return (
     <div className="sidebar">
-      <div className="sidebar-header">
-        <NavLink to="/" className="app-logo">CIT-U SHS</NavLink>
+      <div className="sidebar-header">  
+        
+      <NavLink to="/" className="app-logo">
+  <img src={logo} alt="CIT-U SHS Logo" />
+</NavLink>
       </div>
 
       <nav className="sidebar-menu">

@@ -37,12 +37,13 @@ body {
 }
 
 .sidebar-header {
-  padding: 20px;
-  font-size: 24px;
+  padding: 2px;
   font-weight: bold;
   text-align: center;
   background-color: #1e3a8a;
+  
 }
+
 
 .sidebar-menu {
   display: flex;
@@ -310,6 +311,7 @@ tr:hover {
   overflow-x: auto;
   width: 100%;
 }
+
 
 /* Responsive Adjustments */
 @media (max-width: 1024px) {
