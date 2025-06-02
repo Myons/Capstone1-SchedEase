@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { db } from "../firebase/firebase";
-import { collection, getDocs, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firestore";
-import "./Schedule.css"; // Import the new CSS file
+import { db, auth } from "../firebase/firebase";
+import { collection, getDocs, addDoc, onSnapshot, deleteDoc, doc, getDoc } from "firebase/firestore";
+import { canModifyData } from "../utils/auth";
+import "./Schedule.css";
 
 export default function Schedule() {
   const [schedules, setSchedules] = useState([]);
+  const [userRole, setUserRole] = useState(null);
   
   // Form fields
   const [classType, setClassType] = useState("lecture");
@@ -23,6 +25,7 @@ export default function Schedule() {
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [availableTeachers, setAvailableTeachers] = useState([]);
   
   // Modal states - use Boolean values
   const [showSelectionForm, setShowSelectionForm] = useState(false);
@@ -31,6 +34,7 @@ export default function Schedule() {
   
   const [conflictDetails, setConflictDetails] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [selectedSolution, setSelectedSolution] = useState(null);
 
   // Predefined time blocks
   const timeBlocks = [
@@ -43,6 +47,16 @@ export default function Schedule() {
   ];
 
   useEffect(() => {
+    // Get user role
+    const getUserRole = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const userDoc = await getDoc(doc(db, "faculty", user.uid));
+        setUserRole(userDoc.data()?.role);
+      }
+    };
+    getUserRole();
+
     // Subscribe to schedules collection
     const unsubscribe = onSnapshot(collection(db, "schedules"), (snapshot) => {
       const scheduleData = snapshot.docs.map((doc) => ({
@@ -90,6 +104,25 @@ export default function Schedule() {
 
     return () => unsubscribe();
   }, []);
+
+  // Update available teachers when course changes
+  useEffect(() => {
+    if (selectedCourse) {
+      const filteredTeachers = teachers.filter(teacher => 
+        teacher.courseId === selectedCourse || 
+        (teacher.assignedCourses && teacher.assignedCourses.includes(selectedCourse))
+      );
+      setAvailableTeachers(filteredTeachers);
+      
+      // Clear selected teacher if not available for this course
+      if (selectedTeacher && !filteredTeachers.find(t => t.id === selectedTeacher)) {
+        setSelectedTeacher("");
+      }
+    } else {
+      setAvailableTeachers([]);
+      setSelectedTeacher("");
+    }
+  }, [selectedCourse, teachers, selectedTeacher]);
 
   const getCourseName = (id) => courses.find(course => course.id === id)?.name || "Unknown";
   const getSectionName = (id) => sections.find(section => section.id === id)?.name || "Unknown";
@@ -240,15 +273,17 @@ export default function Schedule() {
     <div className="schedule-container">
       <h1 className="text-2xl font-bold mb-6">Schedule Management</h1>
 
-      {/* Add Schedule Button */}
-      <div className="mb-6">
-        <button 
-          onClick={() => setShowSelectionForm(true)} 
-          className="add-button"
-        >
-          Add Schedule
-        </button>
-      </div>
+      {/* Add Schedule Button - Only show for admins */}
+      {canModifyData(userRole) && (
+        <div className="mb-6">
+          <button 
+            onClick={() => setShowSelectionForm(true)} 
+            className="add-button"
+          >
+            Add Schedule
+          </button>
+        </div>
+      )}
 
       {/* Add Schedule Form Modal */}
       {showSelectionForm && (
@@ -372,14 +407,15 @@ export default function Schedule() {
                     required
                   >
                     <option value="">Select Teacher</option>
-                    {teachers
-                      .filter((teacher) => teacher.sectionId === selectedSection || !teacher.sectionId)
-                      .map((teacher) => (
-                        <option key={teacher.id} value={teacher.id}>
-                          {teacher.name} ({getSubjectName(teacher.subjectId)})
-                        </option>
-                      ))}
+                    {availableTeachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.name} - {getTeacherSubject(teacher.id)}
+                      </option>
+                    ))}
                   </select>
+                  {selectedCourse && availableTeachers.length === 0 && (
+                    <p className="helper-text">No teachers available for this course/grade level</p>
+                  )}
                 </div>
 
                 {/* Time block selection */}
@@ -499,47 +535,124 @@ export default function Schedule() {
       {/* Conflict Modal */}
       {showConflictModal && (
         <div className="modal-overlay">
-          <div className="modal-container" style={{ maxWidth: "500px" }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Conflict Detected</h2>
+          <div className="conflict-modal">
+            <div className="conflict-modal-header">
+              <h2>Resolve Conflict: Room Double-Booking</h2>
               <button 
                 onClick={() => setShowConflictModal(false)} 
                 className="close-button"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ×
               </button>
             </div>
             
-            <div className="modal-content">
-              <p className="mb-2">Conflicting schedules found:</p>
-              <ul>
-                {conflictDetails.map((conflict, idx) => (
-                  <li key={idx}>
-                    {conflict.teacherName} | {conflict.room} | {conflict.day} | {conflict.timeBlockLabel}
-                  </li>
-                ))}
-              </ul>
-              <p className="font-semibold mt-4">Suggested available time blocks:</p>
-              <ul>
-                {suggestions.length > 0 ? suggestions.map((slot, idx) => (
-                  <li key={idx}>
-                    {slot.label}
-                  </li>
-                )) : (
-                  <li>No available time blocks for this day</li>
-                )}
-              </ul>
-            </div>
+            <div className="conflict-modal-content">
+              <div className="conflict-details">
+                <p className="conflict-id">Conflict ID: CON-{String(conflictDetails[0]?.id || '001').padStart(3, '0')}</p>
+                <p>Room {getRoomName(room)} is double-booked for the following classes:</p>
+                
+                <table className="conflict-table">
+                  <thead>
+                    <tr>
+                      <th>Course</th>
+                      <th>Faculty</th>
+                      <th>Schedule</th>
+                      <th>Students</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {conflictDetails.map((conflict, index) => (
+                      <tr key={index}>
+                        <td>{getCourseName(conflict.courseId)} - {getSectionName(conflict.sectionId)}</td>
+                        <td>{conflict.teacherName}</td>
+                        <td>{`${conflict.day}, ${conflict.timeBlockLabel}`}</td>
+                        <td>{sections.find(s => s.id === conflict.sectionId)?.studentCount || 'N/A'}</td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <td>{getCourseName(selectedCourse)} - {getSectionName(selectedSection)}</td>
+                      <td>{getTeacherName(selectedTeacher)}</td>
+                      <td>{`${day}, ${timeBlocks.find(b => b.id === timeBlock)?.label}`}</td>
+                      <td>{sections.find(s => s.id === selectedSection)?.studentCount || 'N/A'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-            <div className="form-actions">
-              <button
-                onClick={() => setShowConflictModal(false)}
-                className="btn btn-danger"
-              >
-                Close
-              </button>
+              <div className="solutions-section">
+                <h3>Recommended Solutions:</h3>
+                
+                {/* Available Rooms */}
+                {rooms
+                  .filter(r => r.type === classType && !conflictDetails.some(c => c.room === r.id))
+                  .map((availableRoom, index) => (
+                    <div 
+                      key={`room-${index}`}
+                      className={`solution-option ${selectedSolution?.type === 'room' && selectedSolution.value === availableRoom.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedSolution({ type: 'room', value: availableRoom.id })}
+                    >
+                      <div className="solution-radio">
+                        <div className="radio-inner"></div>
+                      </div>
+                      <div className="solution-content">
+                        <p>Move to Room {availableRoom.name}</p>
+                        <span className="solution-detail">Room is available during this time slot and has adequate capacity</span>
+                      </div>
+                    </div>
+                  ))}
+
+                {/* Available Time Slots */}
+                {suggestions.map((slot, index) => (
+                  <div 
+                    key={`time-${index}`}
+                    className={`solution-option ${selectedSolution?.type === 'time' && selectedSolution.value === slot.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedSolution({ type: 'time', value: slot.id })}
+                  >
+                    <div className="solution-radio">
+                      <div className="radio-inner"></div>
+                    </div>
+                    <div className="solution-content">
+                      <p>Reschedule to {slot.label}</p>
+                      <span className="solution-detail">This time slot is available for all parties</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="conflict-actions">
+                <button 
+                  className="apply-button"
+                  onClick={async () => {
+                    if (selectedSolution) {
+                      if (selectedSolution.type === 'room') {
+                        setRoom(selectedSolution.value);
+                      } else if (selectedSolution.type === 'time') {
+                        setTimeBlock(selectedSolution.value);
+                      }
+                      setShowConflictModal(false);
+                      await handleAddSchedule();
+                    }
+                  }}
+                  disabled={!selectedSolution}
+                >
+                  Apply Solution
+                </button>
+                <button 
+                  className="cancel-button"
+                  onClick={() => setShowConflictModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="ignore-button"
+                  onClick={async () => {
+                    setShowConflictModal(false);
+                    await handleAddSchedule();
+                  }}
+                >
+                  Ignore Conflict
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -558,7 +671,7 @@ export default function Schedule() {
               <th>Class Type</th>
               <th>Day</th>
               <th>Time Block</th>
-              <th>Actions</th>
+              {canModifyData(userRole) && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -572,14 +685,16 @@ export default function Schedule() {
                 <td>{schedule.classType || "N/A"}</td>
                 <td>{schedule.day}</td>
                 <td>{schedule.timeBlockLabel || `${schedule.startTime}-${schedule.endTime}`}</td>
-                <td>
-                  <button
-                    onClick={() => handleDelete(schedule.id)}
-                    className="btn btn-danger"
-                  >
-                    Delete
-                  </button>
-                </td>
+                {canModifyData(userRole) && (
+                  <td>
+                    <button
+                      onClick={() => handleDelete(schedule.id)}
+                      className="btn btn-danger"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

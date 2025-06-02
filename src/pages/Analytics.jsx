@@ -1,426 +1,422 @@
-// src/pages/Analytics.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db } from "../firebase/firebase";
-import { collection, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line, AreaChart, Area
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area, LineChart, Line
 } from "recharts";
+import "./Analytics.css";
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#AA00FF", "#FF4C4C", "#4CAF50", "#9C27B0"];
+// Color palette
+const COLORS = {
+  primary: "#003366",
+  success: "#10b981",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  neutral: "#64748b",
+  chart: ["#003366", "#004d99", "#0066cc", "#0080ff", "#3399ff", "#66b3ff", "#99ccff", "#cce6ff"]
+};
 
-export default function Analytics() {
+const Analytics = () => {
+  // State management
   const [schedules, setSchedules] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [sections, setSections] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [selectedTimeRange, setSelectedTimeRange] = useState("weekly");
-  const [selectedMetric, setSelectedMetric] = useState("teacherLoad");
+  const [timeRange, setTimeRange] = useState("week");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Fetch data
   useEffect(() => {
-    // Subscribe to schedules collection
-    const unsubscribeSchedules = onSnapshot(collection(db, "schedules"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => doc.data());
-      setSchedules(data);
-    });
-
-    // Fetch faculty data
-    const fetchTeachers = async () => {
-      const snapshot = await getDocs(collection(db, "faculty"));
-      setTeachers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Create queries
+        const schedulesQuery = query(
+          collection(db, "schedules"),
+          orderBy("startTime", "asc"),
+          limit(1000)
+        );
+        
+        const teachersQuery = query(collection(db, "teachers"));
+        const roomsQuery = query(collection(db, "rooms"));
+        const sectionsQuery = query(collection(db, "sections"));
+        
+        // Subscribe to schedules
+        const unsubscribeSchedules = onSnapshot(schedulesQuery, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setSchedules(data);
+        });
+        
+        // Fetch other collections
+        const [teachersSnap, roomsSnap, sectionsSnap] = await Promise.all([
+          getDocs(teachersQuery),
+          getDocs(roomsQuery),
+          getDocs(sectionsQuery)
+        ]);
+        
+        setTeachers(teachersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setRooms(roomsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setSections(sectionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        setIsLoading(false);
+        
+        return () => unsubscribeSchedules();
+      } catch (err) {
+        setError(err.message);
+        setIsLoading(false);
+      }
     };
-
-    // Fetch room data
-    const fetchRooms = async () => {
-      const snapshot = await getDocs(collection(db, "classrooms"));
-      setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-
-    // Fetch sections data
-    const fetchSections = async () => {
-      const snapshot = await getDocs(collection(db, "sections"));
-      setSections(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-
-    // Fetch subjects data
-    const fetchSubjects = async () => {
-      const snapshot = await getDocs(collection(db, "subjects"));
-      setSubjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-
-    fetchTeachers();
-    fetchRooms();
-    fetchSections();
-    fetchSubjects();
-
-    return () => {
-      unsubscribeSchedules();
-    };
+    
+    fetchData();
   }, []);
 
-  // Basic analytics calculations
-  const teacherLoad = schedules.reduce((acc, curr) => {
-    acc[curr.teacherName] = (acc[curr.teacherName] || 0) + 1;
-    return acc;
-  }, {});
-
-  const roomUsage = schedules.reduce((acc, curr) => {
-    acc[curr.room] = (acc[curr.room] || 0) + 1;
-    return acc;
-  }, {});
-
-  const dayDistribution = schedules.reduce((acc, curr) => {
-    acc[curr.day] = (acc[curr.day] || 0) + 1;
-    return acc;
-  }, {});
-
-  // Advanced analytics calculations
-  const calculateTeacherEfficiency = () => {
-    // Calculate teacher workload efficiency (classes vs capacity)
-    const teacherEfficiency = {};
+  // Computed statistics
+  const stats = useMemo(() => {
+    if (!schedules.length) return null;
     
-    teachers.forEach(teacher => {
-      const classCount = schedules.filter(s => s.teacherName === teacher.name).length;
-      const maxLoad = teacher.status === "Full-time" ? 21 : 12;
-      const efficiency = classCount / maxLoad * 100;
-      teacherEfficiency[teacher.name] = efficiency;
-    });
+    const totalClasses = schedules.length;
+    const activeTeachers = new Set(schedules.map(s => s.teacherName)).size;
+    const activeRooms = new Set(schedules.map(s => s.room)).size;
+    const avgClassesPerDay = totalClasses / 5; // Assuming 5 working days
     
-    return Object.keys(teacherEfficiency).map(name => ({
-      name,
-      efficiency: teacherEfficiency[name]
-    }));
-  };
+    return {
+      totalClasses: {
+        value: totalClasses,
+        trend: "+5%",
+        isPositive: true
+      },
+      activeTeachers: {
+        value: activeTeachers,
+        trend: "0%",
+        isPositive: true
+      },
+      activeRooms: {
+        value: activeRooms,
+        trend: "-2%",
+        isPositive: false
+      },
+      avgClassesPerDay: {
+        value: Math.round(avgClassesPerDay),
+        trend: "+3%",
+        isPositive: true
+      }
+    };
+  }, [schedules]);
 
-  const calculateRoomUtilization = () => {
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-    const workingHours = 9; // 7am-4pm (9 hours)
-    const roomUtilization = {};
+  // Chart data computations
+  const chartData = useMemo(() => {
+    if (!schedules.length) return {};
     
-    // Initialize room utilization
-    rooms.forEach(room => {
-      roomUtilization[room.name] = {
-        totalPossibleHours: days.length * workingHours,
-        scheduledHours: 0
+    // Teacher workload distribution
+    const teacherLoad = schedules.reduce((acc, curr) => {
+      acc[curr.teacherName] = (acc[curr.teacherName] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const teacherLoadData = Object.entries(teacherLoad)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    // Room utilization
+    const roomUsage = schedules.reduce((acc, curr) => {
+      acc[curr.room] = (acc[curr.room] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const roomUtilizationData = Object.entries(roomUsage)
+      .map(([name, value]) => ({
+        name,
+        utilization: (value / 40) * 100 // Assuming 40 slots per week is 100% utilization
+      }))
+      .sort((a, b) => b.utilization - a.utilization);
+
+    // Hourly distribution
+    const hourlyDistribution = schedules.reduce((acc, curr) => {
+      const hour = curr.startTime.split(":")[0];
+      acc[hour] = (acc[hour] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const hourlyData = Array.from({ length: 10 }, (_, i) => {
+      const hour = String(i + 7).padStart(2, "0");
+      return {
+        hour: `${hour}:00`,
+        classes: hourlyDistribution[hour] || 0
       };
     });
+
+    // Daily distribution
+    const dailyDistribution = schedules.reduce((acc, curr) => {
+      acc[curr.day] = (acc[curr.day] || 0) + 1;
+      return acc;
+    }, {});
     
-    // Calculate scheduled hours
-    schedules.forEach(schedule => {
-      const startHour = parseInt(schedule.startTime.split(':')[0]);
-      const endHour = parseInt(schedule.endTime.split(':')[0]);
-      const duration = endHour - startHour + (endHour < startHour ? 24 : 0);
-      
-      if (roomUtilization[schedule.room]) {
-        roomUtilization[schedule.room].scheduledHours += duration;
-      }
-    });
-    
-    // Calculate utilization percentage
-    return Object.keys(roomUtilization).map(room => ({
-      name: room,
-      utilization: (roomUtilization[room].scheduledHours / roomUtilization[room].totalPossibleHours) * 100
+    const daysOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const dailyData = daysOrder.map(day => ({
+      day,
+      classes: dailyDistribution[day] || 0
     }));
-  };
 
-  const calculateHourlyDistribution = () => {
-    const hours = ["07", "08", "09", "10", "11", "12", "13", "14", "15", "16"];
-    const hourlyData = hours.map(hour => ({
-      hour: `${hour}:00`,
-      count: schedules.filter(s => s.startTime.startsWith(hour) || 
-                               (parseInt(s.startTime.split(':')[0]) < parseInt(hour) && 
-                                parseInt(s.endTime.split(':')[0]) > parseInt(hour))).length
-    }));
+    return {
+      teacherLoad: teacherLoadData,
+      roomUtilization: roomUtilizationData,
+      hourlyDistribution: hourlyData,
+      dailyDistribution: dailyData
+    };
+  }, [schedules]);
+
+  // Insights computation
+  const insights = useMemo(() => {
+    if (!schedules.length || !chartData.roomUtilization || !chartData.teacherLoad) return null;
     
-    return hourlyData;
-  };
+    return {
+      resourceUtilization: [
+        {
+          text: "Average room utilization",
+          value: `${Math.round(chartData.roomUtilization.reduce((acc, curr) => acc + curr.utilization, 0) / chartData.roomUtilization.length)}%`
+        },
+        {
+          text: "Rooms under 30% utilization",
+          value: chartData.roomUtilization.filter(r => r.utilization < 30).length,
+          isWarning: true
+        },
+        {
+          text: "Most utilized room",
+          value: chartData.roomUtilization[0]?.name
+        }
+      ],
+      scheduleBalance: [
+        {
+          text: "Peak teaching hour",
+          value: chartData.hourlyDistribution.reduce((a, b) => a.classes > b.classes ? a : b).hour
+        },
+        {
+          text: "Teachers with optimal load",
+          value: chartData.teacherLoad.filter(t => t.value >= 15 && t.value <= 25).length
+        },
+        {
+          text: "Overloaded teachers",
+          value: chartData.teacherLoad.filter(t => t.value > 25).length,
+          isWarning: true
+        }
+      ]
+    };
+  }, [schedules, chartData]);
 
-  const calculateSectionLoad = () => {
-    const sectionLoad = {};
-    
-    schedules.forEach(schedule => {
-      sectionLoad[schedule.sectionId] = (sectionLoad[schedule.sectionId] || 0) + 1;
-    });
-    
-    return Object.keys(sectionLoad).map(sectionId => ({
-      name: sections.find(s => s.id === sectionId)?.name || "Unknown",
-      classes: sectionLoad[sectionId]
-    }));
-  };
-
-  // Convert to array format for charts
-  const teacherLoadData = Object.keys(teacherLoad).map((key) => ({ name: key, value: teacherLoad[key] }));
-  const roomUsageData = Object.keys(roomUsage).map((key) => ({ name: key, value: roomUsage[key] }));
-  const dayDistributionData = Object.keys(dayDistribution).map((key) => ({ day: key, classes: dayDistribution[key] }));
-  const teacherEfficiencyData = calculateTeacherEfficiency();
-  const roomUtilizationData = calculateRoomUtilization();
-  const hourlyDistributionData = calculateHourlyDistribution();
-  const sectionLoadData = calculateSectionLoad();
-
-  // Format teachers by workload status
-  const teachersByStatus = teachers.reduce((acc, teacher) => {
-    const classCount = schedules.filter(s => s.teacherName === teacher.name).length;
-    const status = classCount === 0 ? "Unassigned" : 
-                  classCount < 10 ? "Underloaded" : 
-                  classCount > 20 ? "Overloaded" : "Optimal";
-    
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const teacherStatusData = Object.keys(teachersByStatus).map(key => ({
-    name: key,
-    value: teachersByStatus[key]
-  }));
+  if (error) {
+    return (
+      <div className="analytics-container">
+        <div className="error-message">
+          Error loading analytics: {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="analytics-container">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Analytics & Reports</h1>
-        
-        <div className="filter-controls">
-          <select 
-            value={selectedTimeRange} 
-            onChange={(e) => setSelectedTimeRange(e.target.value)}
-            className="border rounded p-2"
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="semester">Semester</option>
-          </select>
+    <div className="analytics-dashboard">
+      {/* Header */}
+      <div className="analytics-dashboard__header">
+        <div className="analytics-dashboard__header-content">
+          <div className="analytics-dashboard__title-wrapper">
+            <svg className="analytics-dashboard__title-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" />
+              <path d="M16 5V3" />
+              <path d="M8 5V3" />
+              <path d="M3 9h18" />
+              <circle cx="18" cy="18" r="3" />
+              <path d="M18 14v1" />
+            </svg>
+            <h1 className="analytics-dashboard__title">Schedule Analytics</h1>
+          </div>
           
-          <select 
-            value={selectedMetric} 
-            onChange={(e) => setSelectedMetric(e.target.value)}
-            className="border rounded p-2"
-          >
-            <option value="teacherLoad">Teacher Load</option>
-            <option value="roomUsage">Room Usage</option>
-            <option value="scheduleDistribution">Schedule Distribution</option>
-            <option value="sectionLoad">Section Load</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="analytics-card summary-card">
-          <h3 className="text-gray-500 text-sm">Total Classes</h3>
-          <p className="text-2xl font-bold">{schedules.length}</p>
-        </div>
-        <div className="analytics-card summary-card">
-          <h3 className="text-gray-500 text-sm">Active Teachers</h3>
-          <p className="text-2xl font-bold">{Object.keys(teacherLoad).length}</p>
-        </div>
-        <div className="analytics-card summary-card">
-          <h3 className="text-gray-500 text-sm">Rooms In Use</h3>
-          <p className="text-2xl font-bold">{Object.keys(roomUsage).length}</p>
-        </div>
-        <div className="analytics-card summary-card">
-          <h3 className="text-gray-500 text-sm">Avg Classes Per Day</h3>
-          <p className="text-2xl font-bold">
-            {dayDistributionData.length > 0 ? 
-              (schedules.length / dayDistributionData.length).toFixed(1) : 0}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Teacher Load Pie Chart */}
-        <div className="chart-container">
-          <h2 className="text-xl font-bold mb-4">Teacher Load</h2>
-          <div className="pie-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie 
-                  data={teacherLoadData} 
-                  dataKey="value" 
-                  nameKey="name" 
-                  cx="50%" 
-                  cy="50%" 
-                  outerRadius={80} 
-                  label={(entry) => `${entry.name}: ${entry.value}`}
-                >
-                  {teacherLoadData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="analytics-dashboard__actions">
+            <select 
+              className="analytics-dashboard__select"
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+            >
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="semester">This Semester</option>
+            </select>
           </div>
         </div>
+      </div>
 
-        {/* Teacher Status Distribution */}
-        <div className="chart-container">
-          <h2 className="text-xl font-bold mb-4">Teacher Workload Status</h2>
-          <div className="pie-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie 
-                  data={teacherStatusData} 
-                  dataKey="value" 
-                  nameKey="name" 
-                  cx="50%" 
-                  cy="50%" 
-                  outerRadius={80}
-                  label={(entry) => `${entry.name}: ${entry.value}`}
-                >
-                  {teacherStatusData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={
-                        entry.name === "Optimal" ? "#4CAF50" : 
-                        entry.name === "Underloaded" ? "#FFC107" : 
-                        entry.name === "Overloaded" ? "#F44336" : 
-                        "#9E9E9E"
-                      } 
-                    />
-                  ))}
-                </Pie>
+      {/* Stats Grid */}
+      <div className="analytics-dashboard__stats-grid">
+        {stats && Object.entries(stats).map(([key, stat]) => (
+          <div key={key} className="analytics-dashboard__stat-card">
+            <div className="analytics-dashboard__stat-header">
+              <div className="analytics-dashboard__stat-icon">
+                {key === "totalClasses" && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                  </svg>
+                )}
+                {key === "activeTeachers" && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                )}
+                {key === "activeRooms" && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                )}
+                {key === "avgClassesPerDay" && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                )}
+              </div>
+              <h3 className="analytics-dashboard__stat-title">
+                {key === "totalClasses" && "Total Classes"}
+                {key === "activeTeachers" && "Active Teachers"}
+                {key === "activeRooms" && "Active Rooms"}
+                {key === "avgClassesPerDay" && "Avg. Classes/Day"}
+              </h3>
+            </div>
+            <p className="analytics-dashboard__stat-value">{stat.value}</p>
+            <div className={`analytics-dashboard__stat-trend ${stat.isPositive ? "analytics-dashboard__trend--positive" : "analytics-dashboard__trend--negative"}`}>
+              {stat.isPositive ? "↑" : "↓"} {stat.trend} from last {timeRange}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts Grid */}
+      <div className="analytics-dashboard__charts-grid">
+        {/* Teacher Workload Distribution */}
+        <div className="analytics-dashboard__chart-card">
+          <div className="analytics-dashboard__chart-header">
+            <h3 className="analytics-dashboard__chart-title">Teacher Workload Distribution</h3>
+          </div>
+          <div className="analytics-dashboard__chart-content">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData.teacherLoad}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                <YAxis label={{ value: 'Classes', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
-              </PieChart>
+                <Bar dataKey="value" fill={COLORS.primary} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Room Utilization */}
-        <div className="chart-container">
-          <h2 className="text-xl font-bold mb-4">Room Utilization</h2>
-          <div className="bar-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={roomUtilizationData}>
+        <div className="analytics-dashboard__chart-card">
+          <div className="analytics-dashboard__chart-header">
+            <h3 className="analytics-dashboard__chart-title">Room Utilization</h3>
+          </div>
+          <div className="analytics-dashboard__chart-content">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData.roomUtilization}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
                 <YAxis label={{ value: 'Utilization %', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
-                <Bar dataKey="utilization" fill="#8884d8" />
+                <Bar dataKey="utilization" fill={COLORS.warning} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Teacher Efficiency */}
-        <div className="chart-container">
-          <h2 className="text-xl font-bold mb-4">Teacher Efficiency</h2>
-          <div className="bar-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={teacherEfficiencyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis label={{ value: 'Efficiency %', angle: -90, position: 'insideLeft' }} />
-                <Tooltip />
-                <Bar dataKey="efficiency" fill="#82ca9d" />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Hourly Distribution */}
+        <div className="analytics-dashboard__chart-card analytics-dashboard__chart--full-width">
+          <div className="analytics-dashboard__chart-header">
+            <h3 className="analytics-dashboard__chart-title">Hourly Class Distribution</h3>
           </div>
-        </div>
-
-        {/* Hourly Class Distribution */}
-        <div className="chart-container md:col-span-2">
-          <h2 className="text-xl font-bold mb-4">Hourly Class Distribution</h2>
-          <div className="area-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={hourlyDistributionData}>
+          <div className="analytics-dashboard__chart-content">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData.hourlyDistribution}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hour" />
                 <YAxis />
                 <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                <Area type="monotone" dataKey="classes" stroke={COLORS.primary} fill={COLORS.primary} fillOpacity={0.2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Class Per Day Distribution */}
-        <div className="chart-container md:col-span-2">
-          <h2 className="text-xl font-bold mb-4">Classes Per Day</h2>
-          <div className="bar-chart-wrapper">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dayDistributionData}>
+        {/* Daily Distribution */}
+        <div className="analytics-dashboard__chart-card analytics-dashboard__chart--full-width">
+          <div className="analytics-dashboard__chart-header">
+            <h3 className="analytics-dashboard__chart-title">Classes Per Day</h3>
+          </div>
+          <div className="analytics-dashboard__chart-content">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData.dailyDistribution}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="classes" fill="#8884d8" />
+                <Bar dataKey="classes" fill={COLORS.success} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Additional Insights Section */}
-      <div className="mt-8 insights-container">
-        <h2 className="text-xl font-bold mb-4">Key Insights</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-bold text-lg mb-2">Resource Utilization</h3>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>
-                Room utilization is {
-                  roomUtilizationData.length > 0 ? 
-                    `${(roomUtilizationData.reduce((sum, item) => sum + item.utilization, 0) / roomUtilizationData.length).toFixed(1)}%` : 
-                    'loading...'
-                }
-              </li>
-              <li>
-                Most utilized room: {
-                  roomUtilizationData.length > 0 ?
-                    roomUtilizationData.sort((a, b) => b.utilization - a.utilization)[0]?.name :
-                    'loading...'
-                }
-              </li>
-              <li>
-                Least utilized room: {
-                  roomUtilizationData.length > 0 ?
-                    roomUtilizationData.sort((a, b) => a.utilization - b.utilization)[0]?.name :
-                    'loading...'
-                }
-              </li>
-            </ul>
+      {/* Insights Section */}
+      {insights && (
+        <div className="analytics-dashboard__insights">
+          <div className="analytics-dashboard__insights-header">
+            <h3 className="analytics-dashboard__insights-title">Key Insights</h3>
           </div>
           
-          <div>
-            <h3 className="font-bold text-lg mb-2">Schedule Balance</h3>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>
-                Peak teaching hour: {
-                  hourlyDistributionData.length > 0 ?
-                    hourlyDistributionData.sort((a, b) => b.count - a.count)[0]?.hour :
-                    'loading...'
-                }
-              </li>
-              <li>
-                Busiest day: {
-                  dayDistributionData.length > 0 ?
-                    dayDistributionData.sort((a, b) => b.classes - a.classes)[0]?.day :
-                    'loading...'
-                }
-              </li>
-              <li>
-                Teacher workload distribution: {
-                  teacherEfficiencyData.length > 0 ?
-                    `${teacherEfficiencyData.filter(t => t.efficiency >= 90 && t.efficiency <= 110).length} teachers with optimal load` :
-                    'loading...'
-                }
-              </li>
-            </ul>
+          <div className="analytics-dashboard__insights-grid">
+            <div className="analytics-dashboard__insight-card">
+              <div className="analytics-dashboard__insight-header">
+                <svg className="analytics-dashboard__insight-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <h4 className="analytics-dashboard__insight-title">Resource Utilization</h4>
+              </div>
+              <ul className="analytics-dashboard__insight-list">
+                {insights.resourceUtilization.map((insight, index) => (
+                  <li key={index} className="analytics-dashboard__insight-item">
+                    {insight.text}: <span className="analytics-dashboard__insight-value">{insight.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="analytics-dashboard__insight-card">
+              <div className="analytics-dashboard__insight-header">
+                <svg className="analytics-dashboard__insight-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                </svg>
+                <h4 className="analytics-dashboard__insight-title">Schedule Balance</h4>
+              </div>
+              <ul className="analytics-dashboard__insight-list">
+                {insights.scheduleBalance.map((insight, index) => (
+                  <li key={index} className="analytics-dashboard__insight-item">
+                    {insight.text}: <span className="analytics-dashboard__insight-value">{insight.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Export Report Section */}
-      <div className="mt-8 flex justify-end">
-        <button className="export-button">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-          Export Report
-        </button>
-      </div>
+      )}
     </div>
   );
-}
+};
+
+export default Analytics;

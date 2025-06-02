@@ -1,0 +1,359 @@
+/* Login.css - Completely Updated */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.login-container {
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  font-family: 'Inter', sans-serif;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  padding: 2.5rem;
+  width: 420px;
+  max-width: 100%;
+  margin: 0 auto;
+  transition: transform 0.3s ease;
+}
+
+.login-card:hover {
+  transform: translateY(-5px);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-header h1,
+.login-header h2 {
+  color: #1e3a8a;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.login-header p {
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.input-group {
+  margin-bottom: 1.5rem;
+}
+
+.input-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.input-group label svg {
+  color: #64748b;
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+  color: #1e293b;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.password-input-container {
+  position: relative;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+  color: #475569;
+}
+
+.form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.remember-me input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #1e3a8a;
+}
+
+.remember-me span {
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.forgot-password {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.forgot-password:hover {
+  color: #1e3a8a;
+  text-decoration: underline;
+}
+
+.submit-button {
+  width: 100%;
+  padding: 0.875rem;
+  background: #1e3a8a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.submit-button:hover {
+  background: #1e40af;
+  transform: translateY(-1px);
+}
+
+.submit-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message,
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #dc2626;
+}
+
+.success-message {
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  color: #16a34a;
+}
+
+.password-strength {
+  margin-top: 0.75rem;
+}
+
+.strength-bars {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.strength-bars .bar {
+  height: 4px;
+  flex: 1;
+  background: #e2e8f0;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.bar.password-weak {
+  background: #ef4444;
+}
+
+.bar.password-medium {
+  background: #f59e0b;
+}
+
+.bar.password-strong {
+  background: #10b981;
+}
+
+.password-strength span {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+span.password-weak {
+  color: #ef4444;
+}
+
+span.password-medium {
+  color: #f59e0b;
+}
+
+span.password-strong {
+  color: #10b981;
+}
+
+.input-hint {
+  display: block;
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.5rem auto 0;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.back-button:hover {
+  color: #1e3a8a;
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: 1rem;
+  }
+
+  .login-card {
+    padding: 1.5rem;
+  }
+
+  .form-options {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+.password-change-form {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+.password-change-form .login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.password-change-form .login-header h1 {
+  color: var(--primary-700);
+  margin-bottom: 0.5rem;
+}
+
+.password-change-form .login-header p {
+  color: var(--neutral-600);
+}
+
+.password-change-form .input-group {
+  margin-bottom: 1.5rem;
+}
+
+.password-change-form .input-hint {
+  color: var(--neutral-600);
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.password-change-form .submit-button {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--primary-600);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.password-change-form .submit-button:hover {
+  background-color: var(--primary-700);
+}
+
+.password-change-form .submit-button:disabled {
+  background-color: var(--neutral-400);
+  cursor: not-allowed;
+}
+
+.password-change-form .error-message {
+  background-color: var(--error-50);
+  color: var(--error-700);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
