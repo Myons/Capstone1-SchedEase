@@ -682,3 +682,52 @@
     background: var(--neutral-300);
   }
 }
+
+.faculty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.faculty-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s;
+  position: relative;
+}
+
+.faculty-card:hover {
+  box-shadow: 0 6px 24px rgba(99,102,241,0.13);
+}
+
+.faculty-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.faculty-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #3730a3;
+}
+
+.faculty-role {
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.95rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.faculty-card-body > div {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}

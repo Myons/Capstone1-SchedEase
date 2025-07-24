@@ -9,6 +9,7 @@ import {
   signOut
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import api from "../api/axios";
 import { AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import "./Login.css";
 
@@ -91,9 +92,9 @@ export default function Login({ initialView }) {
       const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password);
       const user = userCredential.user;
       
-      // Get user data from Firestore
-      const userDoc = await getDoc(doc(db, "faculty", user.uid));
-      const userData = userDoc.data();
+      // Get user data from backend API (hybrid method)
+      const userProfileRes = await api.get(`/faculty/${user.uid}`);
+      const userData = userProfileRes.data;
       
       if (!userData) {
         await signOut(auth);
@@ -136,33 +137,24 @@ export default function Login({ initialView }) {
       if (newPassword.length < 8) {
         throw new Error("Password must be at least 8 characters long");
       }
-      
       if (newPassword !== confirmPassword) {
         throw new Error("Passwords do not match");
       }
-      
       if (checkPasswordStrength(newPassword) < 4) {
         throw new Error("Password must include uppercase, lowercase, numbers, and special characters");
       }
 
-      // Update password
+      // Update password in Firebase Auth
       await updatePassword(user, newPassword);
 
-      // Update Firestore flags
-      const userDocRef = doc(db, "faculty", user.uid);
-      await updateDoc(userDocRef, {
-        passwordChanged: true,
-        passwordLastChanged: new Date()
-      });
+      // Call backend to update passwordChanged flag
+      await api.post(`/faculty/${user.uid}/change-password`, { newPassword });
 
-      // Show success message
-      setSuccess("Password changed successfully! Redirecting to dashboard...");
-      
-      // Redirect to dashboard after a short delay
-      setTimeout(() => {
-        window.location.href = "/dashboard";
+      setSuccess("Password changed successfully! Please log in again.");
+      setTimeout(async () => {
+        await signOut(auth);
+        setCurrentView(VIEW.LOGIN);
       }, 2000);
-
     } catch (err) {
       console.error("Password change error:", err);
       if (err.code === "auth/requires-recent-login") {

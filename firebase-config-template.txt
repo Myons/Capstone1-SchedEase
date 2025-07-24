@@ -1,0 +1,23 @@
+# Copy this content to a new file called .env in your project root
+
+# Firebase Configuration - Replace these values with your Firebase config
+VITE_FIREBASE_API_KEY=replace_with_your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=schoolscheduler-fa641.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=schoolscheduler-fa641
+VITE_FIREBASE_STORAGE_BUCKET=schoolscheduler-fa641.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=104706577121893377009
+VITE_FIREBASE_APP_ID=replace_with_your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=replace_with_your_measurement_id
+
+# How to get these values:
+# 1. Go to console.firebase.google.com
+# 2. Select project "schoolscheduler-fa641"
+# 3. Click the gear icon (⚙️) for Project Settings
+# 4. Under "Your apps", find your web app or create one
+# 5. Copy the values from the firebaseConfig object
+
+# After getting the values:
+# 1. Create a new file called .env in your project root
+# 2. Copy this content into it
+# 3. Replace the placeholder values with your actual Firebase config values
+# 4. Restart your development server (npm run dev) 

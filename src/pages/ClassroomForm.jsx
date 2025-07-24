@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { db } from "../firebase/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import api from "../api/axios";
 
 export default function ClassroomForm({ onClose, onClassroomAdded }) {
   const [formData, setFormData] = useState({
@@ -29,48 +28,15 @@ export default function ClassroomForm({ onClose, onClassroomAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     setError("");
-    
-    if (!formData.building || !formData.floor || !formData.roomNumber || !formData.capacity) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
     try {
-      setIsSubmitting(true);
-      
-      // Add to Firestore
-      await addDoc(collection(db, "classrooms"), {
-        building: formData.building,
-        floor: formData.floor,
-        roomNumber: formData.roomNumber,
-        name: formData.name,
-        capacity: parseInt(formData.capacity),
-        type: formData.type
-      });
-      
-      // Reset form
-      setFormData({
-        building: "",
-        floor: "",
-        roomNumber: "",
-        name: "",
-        capacity: "",
-        type: "lecture"
-      });
-      
-      // Notify parent component
-      if (onClassroomAdded) {
-        onClassroomAdded();
-      }
-      
-      // Close modal if provided
-      if (onClose) {
-        onClose();
-      }
+      // Create classroom via backend API
+      const res = await api.post("/classrooms", formData);
+      if (onClassroomAdded) onClassroomAdded(res.data);
+      onClose();
     } catch (err) {
-      console.error("Error adding classroom:", err);
-      setError("Failed to add classroom: " + err.message);
+      setError("Failed to add classroom");
     } finally {
       setIsSubmitting(false);
     }

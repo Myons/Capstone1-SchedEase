@@ -1,9 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "./firebase/firebase";
+import { auth } from "./firebase/firebase";
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import Sidebar from "./components/sidebar";
+import { AdminSidebar, TeacherSidebar } from "./components/sidebar";
+import PasswordChange from "./components/PasswordChange";
 import Dashboard from "./pages/Dashboard";
 import Schedule from "./pages/Schedule";
 import Faculty from "./pages/Faculty";
@@ -12,6 +12,8 @@ import Courses from "./pages/Courses";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import AuthTest from "./components/AuthTest";
+import api from "./api/axios";
 import "./App.css";
 
 // Protected route wrapper component
@@ -38,22 +40,37 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log("🔄 Auth state changed:", currentUser ? `User ID: ${currentUser.uid}` : "No user");
       setUser(currentUser);
       
       if (currentUser) {
-        // Get user data from Firestore
-        const userDoc = await getDoc(doc(db, "faculty", currentUser.uid));
-        const userData = userDoc.data();
-        setUserRole(userData?.role);
-        
-        // Check if password change is required
-        if (userData && !userData.passwordChanged) {
-          console.log("User needs to change password");
-          setNeedsPasswordChange(true);
-        } else {
+        console.log("🔍 Attempting to fetch user data from backend...");
+        // Get user data from backend API
+        try {
+          const userProfileRes = await api.get(`/faculty/${currentUser.uid}`);
+          const userData = userProfileRes.data;
+          console.log("✅ User data from backend:", userData);
+          setUserRole(userData?.role);
+          // Check if password change is required
+          if (userData && !userData.passwordChanged) {
+            console.log("🔐 User needs to change password");
+            setNeedsPasswordChange(true);
+          } else {
+            console.log("✅ User password already changed");
+            setNeedsPasswordChange(false);
+          }
+        } catch (err) {
+          console.error("❌ Error fetching user data:", err);
+          console.error("❌ Error details:", {
+            status: err.response?.status,
+            statusText: err.response?.statusText,
+            data: err.response?.data
+          });
+          setUserRole(null);
           setNeedsPasswordChange(false);
         }
       } else {
+        console.log("👤 No user - clearing state");
         setUserRole(null);
         setNeedsPasswordChange(false);
       }
@@ -71,15 +88,28 @@ export default function App() {
     return <Login />;
   }
 
-  // If user needs to change password, show the Login component with password change view
+  // If user needs to change password, show the PasswordChange component
   if (needsPasswordChange) {
-    return <Login initialView="password_change" />;
+    return <PasswordChange onComplete={async () => {
+      // Update local state first
+      setNeedsPasswordChange(false);
+      
+      // Wait a moment for the backend update to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Sign out and reload to ensure fresh state
+      await auth.signOut();
+      window.location.reload();
+    }} />;
   }
+
+  // Debug userRole before rendering sidebar
+  console.log("userRole:", userRole);
 
   return (
     <Router>
       <div className="app-container">
-        <Sidebar userRole={userRole} />
+        {userRole === "admin" ? <AdminSidebar /> : userRole === "teacher" ? <TeacherSidebar /> : null}
         <div className="main-content">
           <Routes>
             {/* All routes accessible to both admin and teacher */}
@@ -130,6 +160,22 @@ export default function App() {
                   <Analytics />
                 </ProtectedRoute>
               } 
+            />
+
+            {/* Test route for debugging */}
+            <Route 
+              path="/test" 
+              element={
+                <ProtectedRoute>
+                  <AuthTest />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Simple test route without authentication */}
+            <Route 
+              path="/test-public" 
+              element={<AuthTest />}
             />
 
             {/* Error and unauthorized routes */}

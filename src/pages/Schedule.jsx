@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { db, auth } from "../firebase/firebase";
-import { collection, getDocs, addDoc, onSnapshot, deleteDoc, doc, getDoc } from "firebase/firestore";
+import api from "../api/axios";
+import { auth } from "../firebase/firebase";
 import { canModifyData } from "../utils/auth";
 import "./Schedule.css";
 
@@ -20,12 +20,20 @@ export default function Schedule() {
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [rooms, setRooms] = useState([]);
-  
+
   // Selection state
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [availableTeachers, setAvailableTeachers] = useState([]);
+
+  // Debug: log sections and selectedCourse whenever they change
+  useEffect(() => {
+    console.log('Sections:', sections);
+    console.log('Selected Course:', selectedCourse);
+    const filtered = sections.filter((section) => section.courseId === selectedCourse);
+    console.log('Filtered Sections:', filtered);
+  }, [sections, selectedCourse]);
   
   // Modal states - use Boolean values
   const [showSelectionForm, setShowSelectionForm] = useState(false);
@@ -51,59 +59,61 @@ export default function Schedule() {
     const getUserRole = async () => {
       const user = auth.currentUser;
       if (user) {
-        const userDoc = await getDoc(doc(db, "faculty", user.uid));
-        setUserRole(userDoc.data()?.role);
+        const userDoc = await api.get(`/faculty/${user.uid}`);
+        setUserRole(userDoc.data?.role);
       }
     };
     getUserRole();
 
-    // Subscribe to schedules collection
-    const unsubscribe = onSnapshot(collection(db, "schedules"), (snapshot) => {
-      const scheduleData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setSchedules(scheduleData);
-    });
+    // Fetch schedules
+    const fetchSchedules = async () => {
+      const res = await api.get("/schedules");
+      setSchedules(res.data);
+    };
 
-    // Fetch courses (grade levels)
+    // Fetch courses
     const fetchCourses = async () => {
-      const courseSnapshot = await getDocs(collection(db, "courses"));
-      setCourses(courseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const res = await api.get("/courses");
+      setCourses(res.data);
     };
 
     // Fetch sections
     const fetchSections = async () => {
-      const sectionSnapshot = await getDocs(collection(db, "sections"));
-      setSections(sectionSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const res = await api.get("/sections");
+      setSections(res.data);
     };
 
-    // Fetch subjects
-    const fetchSubjects = async () => {
-      const subjectSnapshot = await getDocs(collection(db, "subjects"));
-      setSubjects(subjectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    };
-    
     // Fetch teachers
     const fetchTeachers = async () => {
-      const teacherSnapshot = await getDocs(collection(db, "teachers"));
-      setTeachers(teacherSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const res = await api.get("/teachers");
+      setTeachers(res.data);
     };
 
     // Fetch rooms
     const fetchRooms = async () => {
-      const roomSnapshot = await getDocs(collection(db, "rooms"));
-      setRooms(roomSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const res = await api.get("/classrooms");
+      setRooms(res.data);
     };
 
+    fetchSchedules();
     fetchCourses();
     fetchSections();
-    fetchSubjects();
     fetchTeachers();
     fetchRooms();
-
-    return () => unsubscribe();
   }, []);
+
+  // Fetch subjects when selectedCourse changes
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      if (selectedCourse) {
+        const res = await api.get(`/subjects?courseId=${selectedCourse}`);
+        setSubjects(res.data);
+      } else {
+        setSubjects([]);
+      }
+    };
+    fetchSubjects();
+  }, [selectedCourse]);
 
   // Update available teachers when course changes
   useEffect(() => {
@@ -229,22 +239,46 @@ export default function Schedule() {
     const subjectId = teacher?.subjectId || "";
     const selectedTimeBlockDetails = timeBlocks.find(block => block.id === timeBlock);
 
-    await addDoc(collection(db, "schedules"), {
-      teacherId: selectedTeacher,
-      teacherName: getTeacherName(selectedTeacher),
-      courseId: selectedCourse,
-      sectionId: selectedSection,
-      subjectId: subjectId,
-      room,
-      classType,
-      day,
-      timeBlockId: timeBlock,
-      timeBlockLabel: selectedTimeBlockDetails.label,
-      startTime: selectedTimeBlockDetails.start,
-      endTime: selectedTimeBlockDetails.end,
-    });
-
-    clearForm();
+    // Only allow admins to add schedules
+    if (userRole !== "admin") {
+      alert("Only admins can add schedules.");
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user) {
+      alert("You must be logged in to add a schedule.");
+      return;
+    }
+    const idToken = await user.getIdToken();
+    try {
+      await api.post("/schedules", {
+        teacherId: selectedTeacher,
+        teacherName: getTeacherName(selectedTeacher),
+        courseId: selectedCourse,
+        sectionId: selectedSection,
+        subjectId: subjectId,
+        roomId: room, // send as roomId
+        room: getRoomName(room), // send as room name for backend compatibility
+        classType,
+        day,
+        timeBlockId: timeBlock,
+        timeBlockLabel: selectedTimeBlockDetails.label,
+        startTime: selectedTimeBlockDetails.start,
+        endTime: selectedTimeBlockDetails.end,
+      }, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      clearForm();
+    } catch (error) {
+      console.error("Schedule creation error:", error);
+      if (error.response && error.response.data) {
+        alert("Error: " + (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data)));
+      } else {
+        alert("An unknown error occurred while creating the schedule.");
+      }
+    }
   };
 
   const clearForm = () => {
@@ -262,7 +296,7 @@ export default function Schedule() {
   const handleDelete = async (id) => {
     const confirmDelete = confirm("Are you sure you want to delete this schedule?");
     if (confirmDelete) {
-      await deleteDoc(doc(db, "schedules", id));
+      await api.delete(`/schedules/${id}`);
     }
   };
 
@@ -388,12 +422,18 @@ export default function Schedule() {
                     required
                   >
                     <option value="">Select Section</option>
+                    {selectedCourse && sections.filter((section) => section.courseId === selectedCourse).length === 0 && (
+                      <option disabled>No sections available for this grade level</option>
+                    )}
                     {sections
                       .filter((section) => section.courseId === selectedCourse)
                       .map((section) => (
                         <option key={section.id} value={section.id}>{section.name}</option>
                       ))}
                   </select>
+                  {selectedCourse && sections.filter((section) => section.courseId === selectedCourse).length === 0 && (
+                    <p className="helper-text">No sections available for this grade level</p>
+                  )}
                 </div>
 
                 {/* Teacher selection */}

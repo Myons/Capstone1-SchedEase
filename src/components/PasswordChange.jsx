@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { auth, db } from '../firebase/firebase';
+import { auth } from '../firebase/firebase';
 import { updatePassword } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import api from '../api/axios';
 import './PasswordChange.css';
 
 export default function PasswordChange({ onComplete }) {
@@ -16,8 +16,8 @@ export default function PasswordChange({ onComplete }) {
     setLoading(true);
 
     // Validate passwords
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
       setLoading(false);
       return;
     }
@@ -37,11 +37,8 @@ export default function PasswordChange({ onComplete }) {
       // Update password in Firebase Auth
       await updatePassword(user, newPassword);
 
-      // Update firstLogin flag in Firestore
-      const userDocRef = doc(db, 'faculty', user.uid);
-      await updateDoc(userDocRef, {
-        firstLogin: false
-      });
+      // Update passwordChanged flag via backend API
+      await api.post(`/faculty/${user.uid}/change-password`, { newPassword });
 
       // Call the completion callback
       if (onComplete) {
@@ -72,6 +69,7 @@ export default function PasswordChange({ onComplete }) {
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password"
               required
+              minLength={8}
             />
           </div>
           
